@@ -1,0 +1,6 @@
+[package]
+name = "ripplemesh"
+version = "0.1.0"
+authors = ["sebastianpfluegelmeier <pfluegelmeier.sWgmx.at>"]
+
+[dependencies]
