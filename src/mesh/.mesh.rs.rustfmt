@@ -1,3 +1,4 @@
+
 #![allow(dead_code)]
 
 
@@ -5,63 +6,9 @@ use std::option;
 use std::vec::Vec;
 use std::collections::LinkedList;
 use std::collections::HashMap;
-use slope::slope::Slope;
-use pipe::pipe::Pipe;
-use add::add::Add;
+use super::super::slope::slope::Slope;
 
 #[test]
-fn test_adder() {
-    let mut mesh: Mesh = Mesh::new();
-    for i in 0..5 {
-        mesh.add_processor(Add::new());
-    }
-    mesh.connect((0, 0), (2, 0));
-    mesh.connect((1, 0), (2, 1));
-    mesh.connect((2, 0), (3, 0));
-    mesh.connect((0, 0), (3, 1));
-    mesh.connect((3, 0), (4, 0));
-    mesh.input_buffers[0][0] = Signal::Sound(1.0);
-    mesh.input_buffers[1][0] = Signal::Sound(2.0);
-    print_input_buffers(&mesh);
-    println!("");
-    mesh.process();
-    print_input_buffers(&mesh);
-    match mesh.input_buffers[4][0] {
-        Signal::Sound(a) => assert!(a == 4.0),
-    }
-
-}
-
-fn test_process() {
-    let mut mesh: Mesh = Mesh::new();
-    for i in 0..3 {
-        mesh.add_processor(Pipe::new());
-    }
-    mesh.connect((0, 0), (1, 0));
-    mesh.connect((1, 0), (2, 0));
-
-    mesh.input_buffers[0][0] = Signal::Sound(1.0);
-    print_input_buffers(&mesh);
-    mesh.process();
-    print_input_buffers(&mesh);
-    match mesh.input_buffers[1][0] {
-        Signal::Sound(a) => assert!(a == 1.0),
-    }
-}
-
-fn print_input_buffers(mesh: &Mesh) {
-    for (i, device) in mesh.input_buffers.iter().enumerate() {
-        for (j, connection) in device.iter().enumerate() {
-            let value: f32;
-            match *connection {
-                Signal::Sound(a) => value = a,
-            }
-            println!("{}:{}: {}", i, j, value);
-        }
-    }
-
-}
-
 fn test_order_topologically() {
     let mut mesh: Mesh = Mesh::new();
     for i in 0..10 {
@@ -94,21 +41,12 @@ fn test_order_topologically() {
 
 pub trait Processor {
     fn process(self: &mut Self, input: &Vec<Signal>) -> Vec<Signal>;
-    fn input_types_and_defaults(self: &Self) -> Vec<Signal>;
-    fn output_types(self: &Self) -> Vec<Signal>;
+    fn inputs_amt(self: &Self) -> usize;
+    fn outputs_amt(self: &Self) -> usize;
 }
-
 
 pub enum Signal {
     Sound(f32)
-}
-
-impl Clone for Signal {
-    fn clone(&self) -> Signal {
-        match *self {
-            Signal::Sound(a) => return Signal::Sound(a),
-        }
-    }
 }
 
 pub struct Mesh {
@@ -135,7 +73,7 @@ impl Mesh {
       (self: &mut Mesh, processor: T) -> usize {
 
         self.adjacency_list.push(Vec::new());
-        for _ in 0..processor.output_types().len() {
+        for _ in 0..processor.outputs_amt() {
             let mut last: Vec<Vec<(usize, usize)>> = Vec::new();
 
             {
@@ -148,43 +86,28 @@ impl Mesh {
             self.adjacency_list.push(last);
         }
         let boxed_processor: Box<Processor> = Box::new(processor);
-        self.input_buffers.push(boxed_processor.input_types_and_defaults());
         self.processors.push(boxed_processor);
-        self.order_topologically();
+        self.input_buffers.push(Vec::new());
         self.adjacency_list.len() - 1
     }
 
     fn process(&mut self) {
-        let mut processors = &mut self.processors;
+        let processors = &(*self.processors);
         let topo: &Vec<usize>; 
         match self.topologically_ordered {
             Some(ref x) => topo = x,
             None    => panic!(), //TODO: implement proper error handling!
         }
         for processor_num in topo {
-            let processor_num_two = processor_num;
-            let processor_num_three = processor_num;
-            let mut boxed_processor: &mut Box<Processor> = &mut processors[*processor_num];
-            let mut processor = boxed_processor;
-            let result: Vec<Signal>;
-            {
-                let input : &Vec<Signal> = &self.input_buffers[*processor_num_two];
-                result = processor.process(input);
-            }
-            let connections: &Vec<Vec<(usize, usize)>> = &self.adjacency_list[*processor_num_three];
-            for (plug_num, plug) in connections.iter().enumerate() {
-                for other in plug {
-                    let (other_processor_num, other_input) = *other;
-                    self.input_buffers[other_processor_num][other_input] = result[plug_num].clone();
-                }
-            }
+            let boxed_processor: Box<Processor> = processors[*processor_num];
+            //let result = processor.process(&self.input_buffers[processor_num]);
         }
+
     }
 
     fn connect(self: &mut Mesh, output: (usize, usize), input: (usize, usize)) {
     // output: (processor, plug), input: (processor, plug)
         self.adjacency_list[output.0][output.1].push((input.0, input.1));
-        self.order_topologically();
     }
 
     fn order_topologically(self: &mut Mesh) {
