@@ -3,20 +3,21 @@ use std::vec::Vec;
 use mesh::mesh::Processor;
 
 pub struct Slope {
-    signal:            f32,
-    time:              f32,
-    old_time:          f32,
-    old_end_amplitude: f32
+    signal:            f64,
+    time:              f64,
+    old_time:          f64,
+    old_end_amplitude: f64
 }
 
 impl Processor for Slope {
     fn process(&mut self, input: &Vec<Signal>) -> Vec<Signal> {
         //first entry of the input array is Signal::Sound(end_amplitute).
         //second entry of the input array is Signal::Time(time).
-        let sound: f32;
+        let sound: f64;
         match input[0]{
 
             Signal::Sound(a) => sound = a,
+            Signal::Int(_)   => panic!(),
 
         }
         let output = sound; // just for now

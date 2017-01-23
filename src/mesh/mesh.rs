@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-
 use std::option;
 use std::vec::Vec;
 use std::collections::LinkedList;
@@ -8,6 +7,55 @@ use std::collections::HashMap;
 use slope::slope::Slope;
 use pipe::pipe::Pipe;
 use add::add::Add;
+use intpipe::intpipe::Intpipe;
+use dac::dac::Dac;
+use sine::sine::Sine;
+
+pub const SAMPLERATE: f64 = 44100.0;
+
+#[test]
+fn sine_test() {
+    let mut sine = Sine::new();
+    let mut signal: Signal = Signal::Sound(0.0);
+    for i in 0 .. 44100 {
+        signal = sine.process(&vec![Signal::Sound(1.0)])[0].clone();
+    }
+    match signal {
+        Signal::Sound(a) => assert!((a < 0.0001) && (a > -(0.0001))),
+        _                => panic!(),
+    }
+    for i in 0 .. 22050 {
+        signal = sine.process(&vec![Signal::Sound(1.0)])[0].clone();
+    }
+    match signal {
+        Signal::Sound(a) => assert!((a > -1.0001) && (a < -0.9999)),
+        _                => panic!(),
+    }
+}
+
+#[test]
+fn dac_test() {
+    let mut dac = Dac::new();
+    dac.process(&vec![]);
+}
+
+#[test]
+fn test_types() {
+    let mut mesh: Mesh = Mesh::new();
+    for _ in 0..3 {
+        mesh.add_processor(Pipe::new());
+    }
+    for _ in 0..3 {
+        mesh.add_processor(Intpipe::new());
+    }
+    mesh.connect((0, 0), (1, 0));
+    mesh.connect((1, 0), (2, 0));
+    mesh.connect((3, 0), (4, 0));
+    let mut connections_match = mesh.connect((4, 0), (5, 0));
+    assert!(connections_match);
+    connections_match = mesh.connect((0, 0), (4, 0));
+    assert!(!connections_match);
+}
 
 #[test]
 fn test_adder() {
@@ -28,10 +76,12 @@ fn test_adder() {
     print_input_buffers(&mesh);
     match mesh.input_buffers[4][0] {
         Signal::Sound(a) => assert!(a == 4.0),
+        Signal::Int(_)   => panic!(),
     }
 
 }
 
+#[test]
 fn test_process() {
     let mut mesh: Mesh = Mesh::new();
     for i in 0..3 {
@@ -46,15 +96,17 @@ fn test_process() {
     print_input_buffers(&mesh);
     match mesh.input_buffers[1][0] {
         Signal::Sound(a) => assert!(a == 1.0),
+        Signal::Int(_)   => panic!(),
     }
 }
 
 fn print_input_buffers(mesh: &Mesh) {
     for (i, device) in mesh.input_buffers.iter().enumerate() {
         for (j, connection) in device.iter().enumerate() {
-            let value: f32;
+            let value: f64;
             match *connection {
                 Signal::Sound(a) => value = a,
+                Signal::Int(_)   => panic!(),
             }
             println!("{}:{}: {}", i, j, value);
         }
@@ -62,6 +114,7 @@ fn print_input_buffers(mesh: &Mesh) {
 
 }
 
+#[test]
 fn test_order_topologically() {
     let mut mesh: Mesh = Mesh::new();
     for i in 0..10 {
@@ -75,7 +128,6 @@ fn test_order_topologically() {
     mesh.connect((2, 0), (4, 0));
     mesh.connect((3, 0), (5, 0));
     mesh.connect((1, 0), (4, 0));
-    //mesh.connect((3, 0), (0, 0));
     mesh.connect((0, 0), (3, 0));
 
     mesh.order_topologically();
@@ -100,13 +152,15 @@ pub trait Processor {
 
 
 pub enum Signal {
-    Sound(f32)
+    Sound(f64),
+    Int(i64),
 }
 
 impl Clone for Signal {
     fn clone(&self) -> Signal {
         match *self {
             Signal::Sound(a) => return Signal::Sound(a),
+            Signal::Int(_)   => panic!(),
         }
     }
 }
@@ -181,10 +235,17 @@ impl Mesh {
         }
     }
 
-    fn connect(self: &mut Mesh, output: (usize, usize), input: (usize, usize)) {
+    fn connect(self: &mut Mesh, output: (usize, usize), input: (usize, usize)) -> bool {
     // output: (processor, plug), input: (processor, plug)
         self.adjacency_list[output.0][output.1].push((input.0, input.1));
-        self.order_topologically();
+        let connections_match = self.check_types();
+        if connections_match {
+            self.order_topologically();
+            true
+        } else {
+            self.adjacency_list[output.0][output.1].pop();
+            false
+        }
     }
 
     fn order_topologically(self: &mut Mesh) {
@@ -249,6 +310,36 @@ impl Mesh {
         } else {
             self.topologically_ordered = Option::Some(ordered);
         }
+        
+    }
+
+    fn check_types(self: &Mesh) -> bool {
+        for (processor_num, processor) in self.adjacency_list.iter().enumerate() {
+            for (out_plug_num, out_plug) in processor.iter().enumerate() {
+                for in_processor in out_plug {
+                    let (in_processor_num, in_plug) = *in_processor;
+                    let this_plug  = &self.processors[processor_num]
+                        .output_types()[out_plug_num];
+                    let other_plug = &self.processors[in_processor_num]
+                        .input_types_and_defaults()[in_plug];
+                    let return_value: bool;
+                    match *this_plug {
+                        Signal::Sound(_) => match *other_plug {
+                            Signal::Sound(_) => return_value = true,
+                            Signal::Int(_)   => return_value = false,
+                        },
+                        Signal::Int(_)   => match *other_plug {
+                            Signal::Sound(_) => return_value = false,
+                            Signal::Int(_)   => return_value = true,
+                        }
+                    }
+                    if !return_value {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 }
 

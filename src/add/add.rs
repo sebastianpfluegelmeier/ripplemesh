@@ -4,14 +4,16 @@ use mesh::mesh::Processor;
 
 impl Processor for Add {
     fn process(&mut self, input: &Vec<Signal>) -> Vec<Signal> {
-        let a: f32;
-        let b: f32;
+        let a: f64;
+        let b: f64;
         match input[0] {
             Signal::Sound(x) => a = x,
+            Signal::Int(_)   => panic!(),
         }
 
         match input[1] {
             Signal::Sound(x) => b = x,
+            Signal::Int(_)   => panic!(),
         }
         vec![Signal::Sound(a + b)]
     }
