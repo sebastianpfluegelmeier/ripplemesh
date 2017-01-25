@@ -24,6 +24,10 @@ impl Processor for Intpipe {
     fn output_types(&self) -> Vec<Signal> {
         vec![Signal::Int(0)]
     }
+
+    fn type_name(&self) -> String {
+        String::from("Dac")
+    }
 }
 
 impl Intpipe {

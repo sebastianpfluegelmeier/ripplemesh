@@ -35,6 +35,10 @@ impl Processor for Slope {
         vec![Signal::Sound(0.0)]
     }
 
+    fn type_name(&self) -> String {
+        String::from("Slope")
+    }
+
 }
 
 impl Slope {

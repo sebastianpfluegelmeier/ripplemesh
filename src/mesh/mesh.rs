@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+extern crate portaudio;
+
+use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc;
+use std::thread;
 use std::option;
 use std::vec::Vec;
 use std::collections::LinkedList;
@@ -11,7 +16,11 @@ use intpipe::intpipe::Intpipe;
 use dac::dac::Dac;
 use sine::sine::Sine;
 
+use self::portaudio as pa;
+
 pub const SAMPLERATE: f64 = 44100.0;
+pub const CHANNELS: i32 = 1;
+pub const FRAMES_PER_BUFFER: u32 = 64;
 
 #[test]
 fn sine_test() {
@@ -35,8 +44,11 @@ fn sine_test() {
 
 #[test]
 fn dac_test() {
-    let mut dac = Dac::new();
-    dac.process(&vec![]);
+    let mut mesh: Mesh = Mesh::new();
+    mesh.add_processor(Sine::new());
+    mesh.add_processor(Dac::new());
+    println!("*** io num:{}***", mesh.io[0]);
+    mesh.run();
 }
 
 #[test]
@@ -63,7 +75,7 @@ fn test_adder() {
     for i in 0..5 {
         mesh.add_processor(Add::new());
     }
-    mesh.connect((0, 0), (2, 0));
+    mesh.connect((0, 0), (1, 0));
     mesh.connect((1, 0), (2, 1));
     mesh.connect((2, 0), (3, 0));
     mesh.connect((0, 0), (3, 1));
@@ -75,7 +87,7 @@ fn test_adder() {
     mesh.process();
     print_input_buffers(&mesh);
     match mesh.input_buffers[4][0] {
-        Signal::Sound(a) => assert!(a == 4.0),
+        Signal::Sound(a) => assert!(a == 2.0),
         Signal::Int(_)   => panic!(),
     }
 
@@ -148,6 +160,7 @@ pub trait Processor {
     fn process(self: &mut Self, input: &Vec<Signal>) -> Vec<Signal>;
     fn input_types_and_defaults(self: &Self) -> Vec<Signal>;
     fn output_types(self: &Self) -> Vec<Signal>;
+    fn type_name(self: &Self) -> String;
 }
 
 
@@ -172,16 +185,21 @@ pub struct Mesh {
     //[out_processor][out_plug][connection](in_processor, in_plug)
     adjacency_list: Vec<Vec<Vec<(usize, usize)>>>,
     topologically_ordered: Option<Vec<usize>>,
+    io: Vec<usize>,
+    tx: Sender<f32>,
 }
 
 impl Mesh {
 
     fn new() -> Mesh {
+        let (ttx, _) = mpsc::channel();
         Mesh {
             processors: Vec::new(),
             input_buffers: Vec::new(),
             adjacency_list: Vec::new(),
             topologically_ordered: Option::Some(Vec::new()),
+            io: Vec::new(),
+            tx: ttx,
         }
     }
 
@@ -203,34 +221,85 @@ impl Mesh {
         }
         let boxed_processor: Box<Processor> = Box::new(processor);
         self.input_buffers.push(boxed_processor.input_types_and_defaults());
+        if boxed_processor.type_name() == "Dac" {
+            self.io.push(self.adjacency_list.len() - 1);
+        }
         self.processors.push(boxed_processor);
         self.order_topologically();
         self.adjacency_list.len() - 1
     }
 
-    fn process(&mut self) {
-        let mut processors = &mut self.processors;
-        let topo: &Vec<usize>; 
-        match self.topologically_ordered {
-            Some(ref x) => topo = x,
-            None    => panic!(), //TODO: implement proper error handling!
-        }
-        for processor_num in topo {
-            let processor_num_two = processor_num;
-            let processor_num_three = processor_num;
-            let mut boxed_processor: &mut Box<Processor> = &mut processors[*processor_num];
-            let mut processor = boxed_processor;
-            let result: Vec<Signal>;
-            {
-                let input : &Vec<Signal> = &self.input_buffers[*processor_num_two];
-                result = processor.process(input);
+    fn run(&mut self) -> Result<(), pa::Error> {
+        let pa = try!(pa::PortAudio::new());
+
+        let mut settings = 
+            try!(pa.default_output_stream_settings(
+                    CHANNELS, SAMPLERATE, FRAMES_PER_BUFFER));
+        // we won't output out of range samples so don't bother clipping them.
+        settings.flags = pa::stream_flags::CLIP_OFF;
+        
+        let (tx, rx)  = mpsc::channel();
+        self.tx = tx;
+
+        let callback = move |pa::OutputStreamCallbackArgs { buffer, frames, .. }| {
+            let mut idx = 0;
+            for _ in 0..frames {
+                buffer[idx] = rx.recv().unwrap();
+                idx += 1;
             }
-            let connections: &Vec<Vec<(usize, usize)>> = &self.adjacency_list[*processor_num_three];
-            for (plug_num, plug) in connections.iter().enumerate() {
-                for other in plug {
-                    let (other_processor_num, other_input) = *other;
-                    self.input_buffers[other_processor_num][other_input] = result[plug_num].clone();
+            pa::Continue
+        };
+
+        let mut stream = try!(pa.open_non_blocking_stream(settings, callback));
+
+        try!(stream.start());
+        while(true) {
+            self.process();
+        }
+
+        try!(stream.stop());
+        try!(stream.close());
+        Ok(())
+    }
+
+    fn process(&mut self) {
+        {
+            let mut processors = &mut self.processors;
+            let topo: &Vec<usize>; 
+            match self.topologically_ordered {
+                Some(ref x) => topo = x,
+                None        => panic!(), //TODO: implement proper error handling!
+            }
+            for processor_num in topo {
+                let processor_num_two = processor_num;
+                let processor_num_three = processor_num;
+                let mut boxed_processor: &mut Box<Processor> = &mut processors[*processor_num];
+                let mut processor = boxed_processor;
+                let result: Vec<Signal>;
+                {
+                    let input : &Vec<Signal> = &self.input_buffers[*processor_num_two];
+                    result = processor.process(input);
                 }
+                let connections: &Vec<Vec<(usize, usize)>> = &self.adjacency_list[*processor_num_three];
+                for (plug_num, plug) in connections.iter().enumerate() {
+                    for other in plug {
+                        let (other_processor_num, other_input) = *other;
+                        self.input_buffers[other_processor_num][other_input] = result[plug_num].clone();
+                    }
+                }
+            }
+        }
+        for (io_slot_num, io_processor_num) in (&self.io).iter().enumerate() {
+            let io_processor: &Box<Processor> = &self.processors[*io_processor_num];
+            if io_processor.type_name() == "Dac" {
+                //TODO: implement properly, only supports one channel
+                let signal: f32;
+                match self.input_buffers[*io_processor_num][0] {
+                    Signal::Sound(a) => signal = a as f32,
+                    _                => panic!(),
+                }
+                self.tx.send(signal);
+                break;
             }
         }
     }

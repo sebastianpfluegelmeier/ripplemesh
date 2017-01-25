@@ -24,6 +24,10 @@ impl Processor for Pipe {
     fn output_types(&self) -> Vec<Signal> {
         vec![Signal::Sound(0.0)]
     }
+    
+    fn type_name(&self) -> String {
+        String::from("Pipe")
+    }
 }
 
 impl Pipe {

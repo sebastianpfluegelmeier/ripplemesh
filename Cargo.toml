@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["sebastianpfluegelmeier <pfluegelmeier.sWgmx.at>"]
 
 [dependencies]
+portaudio = "0.7.0"

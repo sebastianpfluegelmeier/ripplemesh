@@ -28,10 +28,14 @@ impl Processor for Sine {
     }
 
     fn input_types_and_defaults(&self) -> Vec<Signal> {
-        vec![Signal::Sound(0.0)]
+        vec![Signal::Sound(440.0)]
     }
 
     fn output_types(&self) -> Vec<Signal> {
         vec![Signal::Sound(0.0)]
+    }
+
+    fn type_name(&self) -> String {
+        String::from("Sine")
     }
 }
