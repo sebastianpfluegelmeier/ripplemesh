@@ -5,6 +5,7 @@ pub mod slope;
 pub mod pipe;
 pub mod add;
 pub mod intpipe;
+pub mod mult;
 //pub mod jack;
 
 #[test]

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use slope::slope::Slope;
 use pipe::pipe::Pipe;
 use add::add::Add;
+use mult::mult::Mult;
 use intpipe::intpipe::Intpipe;
 use dac::dac::Dac;
 use sine::sine::Sine;
@@ -46,8 +47,13 @@ fn sine_test() {
 fn dac_test() {
     let mut mesh: Mesh = Mesh::new();
     mesh.add_processor(Sine::new());
+    mesh.add_processor(Sine::new());
+    mesh.input_buffers[1][0] = 0.5;
+    mesh.add_processor(Mult::new());
     mesh.add_processor(Dac::new());
-    println!("*** io num:{}***", mesh.io[0]);
+    mesh.connect((0, 0), (2, 0));
+    mesh.connect((1, 0), (2, 1));
+    mesh.connect((2, 0), (3, 0));
     mesh.run();
 }
 
@@ -245,6 +251,7 @@ impl Mesh {
             let mut idx = 0;
             for _ in 0..frames {
                 buffer[idx] = rx.recv().unwrap();
+                println!("send pa: {}",buffer[idx]);
                 idx += 1;
             }
             pa::Continue
@@ -298,6 +305,7 @@ impl Mesh {
                     Signal::Sound(a) => signal = a as f32,
                     _                => panic!(),
                 }
+                println!("sendone: {}",signal);
                 self.tx.send(signal);
                 break;
             }
