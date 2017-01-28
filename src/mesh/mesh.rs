@@ -78,7 +78,6 @@ pub trait Processor {
     fn type_name(self: &Self) -> String;
 }
 
-
 pub enum Signal {
     Sound(f64),
     Int(i64),

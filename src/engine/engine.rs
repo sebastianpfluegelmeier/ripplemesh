@@ -46,7 +46,9 @@ pub struct Engine {
 impl Engine {
 
     fn add_processor(&mut self, processor: Box<Processor>) {
+        let typename = processor.type_name();
         self.processors.push(processor);
+        println!("added processor: {}", typename);
     }
 
     fn remove_processor(&mut self, index: usize) {
