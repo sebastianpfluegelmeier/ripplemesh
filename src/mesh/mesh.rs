@@ -215,7 +215,7 @@ impl Mesh {
                 } else { println!("types dont match");} 
             },
             "constant" => {
-                message = CallbackMessage::Constant((*inputs[1]).parse().unwrap(), (*inputs[2]).parse().unwrap())
+                message = CallbackMessage::Constant(inputs[1].parse().unwrap(), inputs[2].trim_right().parse().unwrap())
             },
             _ => println!("command not found"),
         }
