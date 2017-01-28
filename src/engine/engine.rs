@@ -79,10 +79,13 @@ impl Engine {
     }
 
     pub fn process(&mut self) -> Vec<f32> {
-        match self.rec.try_recv().unwrap() {
-            CallbackMessage::Processor(a) => self.add_processor(a),
-            CallbackMessage::Connections((adj, topo, io)) => self.update_connections(adj, topo, io),
-            CallbackMessage::Constant(a, b) => self.set_constant(a, b),
+        match self.rec.try_recv() {
+	    Result::Ok(a) => match a {
+		CallbackMessage::Processor(a) => self.add_processor(a),
+		CallbackMessage::Connections((adj, topo, io)) => self.update_connections(adj, topo, io),
+		CallbackMessage::Constant(a, b) => self.set_constant(a, b),
+	    },
+	    Result::Err(_) => (),
         }
         {
             let mut processors = &mut self.processors;

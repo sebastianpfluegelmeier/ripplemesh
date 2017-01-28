@@ -183,30 +183,36 @@ impl Mesh {
 
     pub fn prompt(&mut self) -> CallbackMessage {
         let mut input = String::new();
-        io::stdin().read_to_string(&mut input).unwrap();
+        match io::stdin().read_line(&mut input) {
+	    Result::Ok(_)  => (),
+	    Result::Err(_) => {
+		println!("could not read line");
+	        panic!("could not read line");  
+	    },
+	}
         let inputs: Vec<&str> = input.split(' ').collect();
         let mut message: CallbackMessage = CallbackMessage::Processor(Box::new(Dummy::new()));
         match inputs[0] {
             "new" => {
-                match inputs[1] {
-                    "constant" => message = CallbackMessage::Processor(Box::new(Constant::new())),
-                    "sine" => message = CallbackMessage::Processor(Box::new(Sine::new())),
-                    "add"  => message = CallbackMessage::Processor(Box::new(Add::new())),
-                    "mult" => message = CallbackMessage::Processor(Box::new(Mult::new())),
-                    "dac"  => message = CallbackMessage::Processor(Box::new(Dac::new())),
-                    _       => panic!(),
+                match inputs[1].trim_right() {
+                    "constant" => message = CallbackMessage::Processor(self.add_processor(Constant::new())),
+                    "sine" => message = CallbackMessage::Processor(self.add_processor(Sine::new())),
+                    "add"  => message = CallbackMessage::Processor(self.add_processor(Add::new())),
+                    "mult" => message = CallbackMessage::Processor(self.add_processor(Mult::new())),
+                    "dac"  => message = CallbackMessage::Processor(self.add_processor(Dac::new())),
+                    x      => println!("module \"{}\" not known", x),
                 }
             },
             "connect" => {
                 let c1 = inputs[1].parse::<usize>().unwrap();
                 let c2 = inputs[2].parse::<usize>().unwrap();
                 let c3 = inputs[3].parse::<usize>().unwrap();
-                let c4 = inputs[4].parse::<usize>().unwrap();
+                let c4 = inputs[4].trim_right().parse::<usize>().unwrap();
                 if self.connect((c1, c2), (c3, c4)) { message = 
                     CallbackMessage::Connections((adj_clone(&self.adjacency_list),
                     topo_clone(&self.topologically_ordered).unwrap_or(Vec::new()/*really shitty way of handling error*/),
                     io_clone(&self.ios)));
-                } else { panic!();} 
+                } else { println!("types dont match");} 
             },
             "constant" => {
                 message = CallbackMessage::Constant((*inputs[1]).parse().unwrap(), (*inputs[2]).parse().unwrap())
@@ -218,6 +224,10 @@ impl Mesh {
 
     pub fn connect(self: &mut Mesh, output: (usize, usize), input: (usize, usize)) -> bool {
     // output: (processor, plug), input: (processor, plug)
+	match self.topologically_ordered {
+	    Option::Some(_) => (),
+	    Option::None => return false,
+	}
         self.adjacency_list[output.0][output.1].push((input.0, input.1));
         let connections_match = self.check_types();
         if connections_match {
