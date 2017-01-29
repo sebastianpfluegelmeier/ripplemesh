@@ -171,8 +171,9 @@ impl Mesh {
 
         try!(stream.start());
         while true {
-            //Just temporary for debugging.
-            tx.send(self.prompt());
+            for i in self.prompt() {
+                tx.send(i);
+            }
         }
 
         try!(stream.stop());
@@ -180,7 +181,7 @@ impl Mesh {
         Ok(())
     }
 
-    pub fn prompt(&mut self) -> CallbackMessage {
+    pub fn prompt(&mut self) -> Vec<CallbackMessage> {
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
 	    Result::Ok(_)  => (),
@@ -190,15 +191,15 @@ impl Mesh {
 	    },
 	}
         let inputs: Vec<&str> = input.split(' ').collect();
-        let mut message: CallbackMessage = CallbackMessage::Processor(Box::new(Dummy::new()));
+        let mut message: Vec<CallbackMessage> = Vec::new();
         match inputs[0] {
             "new" => {
                 match inputs[1].trim_right() {
-                    "constant" => message = CallbackMessage::Processor(self.add_processor(Constant::new())),
-                    "sine" => message = CallbackMessage::Processor(self.add_processor(Sine::new())),
-                    "add"  => message = CallbackMessage::Processor(self.add_processor(Add::new())),
-                    "mult" => message = CallbackMessage::Processor(self.add_processor(Mult::new())),
-                    "dac"  => message = CallbackMessage::Processor(self.add_processor(Dac::new())),
+                    "constant" => message.push(CallbackMessage::Processor(self.add_processor(Constant::new()))),
+                    "sine" => message.push(CallbackMessage::Processor(self.add_processor(Sine::new()))),
+                    "add"  => message.push(CallbackMessage::Processor(self.add_processor(Add::new()))),
+                    "mult" => message.push(CallbackMessage::Processor(self.add_processor(Mult::new()))),
+                    "dac"  => message.push(CallbackMessage::Processor(self.add_processor(Dac::new()))),
                     x      => println!("module \"{}\" not known", x),
                 }
             },
@@ -207,14 +208,18 @@ impl Mesh {
                 let c2 = inputs[2].parse::<usize>().unwrap();
                 let c3 = inputs[3].parse::<usize>().unwrap();
                 let c4 = inputs[4].trim_right().parse::<usize>().unwrap();
-                if self.connect((c1, c2), (c3, c4)) { message = 
-                    CallbackMessage::Connections((adj_clone(&self.adjacency_list),
+                if self.connect((c1, c2), (c3, c4)) { message.push(
+                    CallbackMessage::Connections(adj_clone(&self.adjacency_list),
                     topo_clone(&self.topologically_ordered).unwrap_or(Vec::new()/*really shitty way of handling error*/),
                     io_clone(&self.ios)));
                 } else { println!("types dont match");} 
             },
             "constant" => {
-                message = CallbackMessage::Constant(inputs[1].parse().unwrap(), inputs[2].trim_right().parse().unwrap())
+                message.push(
+                    CallbackMessage::Connections(adj_clone(&self.adjacency_list),
+                    topo_clone(&self.topologically_ordered).unwrap_or(Vec::new()/*really shitty way of handling error*/),
+                    io_clone(&self.ios)));
+                message.push(CallbackMessage::Constant(inputs[1].parse().unwrap(), inputs[2].trim_right().parse().unwrap()));
             },
             _ => println!("command not found"),
         }

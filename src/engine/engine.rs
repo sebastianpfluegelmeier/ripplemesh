@@ -28,7 +28,7 @@ pub const FRAMES_PER_BUFFER: u32 = 64;
 
 pub enum CallbackMessage {
     Processor(Box<Processor>),
-    Connections((Vec<Vec<Vec<(usize, usize)>>>, Vec<usize>, Vec<usize>)),
+    Connections(Vec<Vec<Vec<(usize, usize)>>>, Vec<usize>, Vec<usize>),
     Constant(usize, f64),
 }
 
@@ -84,7 +84,7 @@ impl Engine {
         match self.rec.try_recv() {
 	    Result::Ok(a) => match a {
 		CallbackMessage::Processor(a) => self.add_processor(a),
-		CallbackMessage::Connections((adj, topo, io)) => self.update_connections(adj, topo, io),
+		CallbackMessage::Connections(adj, topo, io) => self.update_connections(adj, topo, io),
 		CallbackMessage::Constant(a, b) => self.set_constant(a, b),
 	    },
 	    Result::Err(_) => (),
