@@ -47,6 +47,7 @@ impl Engine {
 
     fn add_processor(&mut self, processor: Box<Processor>) {
         let typename = processor.type_name();
+        self.input_buffers.push(processor.input_types_and_defaults());
         self.processors.push(processor);
         println!("added processor: {}", typename);
     }
@@ -73,21 +74,25 @@ impl Engine {
     }
 
     pub fn set_constant(&mut self, constant: usize, value: f64) {
+        println!("setting constant now");
         if self.processors[constant].type_name() == "Constant" {
             self.input_buffers[constant][0] = Signal::Sound(value);
         } else {
             println!("this processor is no constant");
         }
+        println!("constant set");
     }
 
     pub fn process(&mut self) -> Vec<f32> {
-        match self.rec.try_recv() {
-	    Result::Ok(a) => match a {
-		CallbackMessage::Processor(a) => self.add_processor(a),
-		CallbackMessage::Connections(adj, topo, io) => self.update_connections(adj, topo, io),
-		CallbackMessage::Constant(a, b) => self.set_constant(a, b),
-	    },
-	    Result::Err(_) => (),
+        for i in 0..3 {
+            match self.rec.try_recv() {
+            Result::Ok(a) => match a {
+                CallbackMessage::Processor(a) => self.add_processor(a),
+                CallbackMessage::Connections(adj, topo, io) => self.update_connections(adj, topo, io),
+                CallbackMessage::Constant(a, b) => self.set_constant(a, b),
+            },
+	        Result::Err(_) => (),
+        }
         }
         {
             let mut processors = &mut self.processors;

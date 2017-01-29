@@ -170,7 +170,7 @@ impl Mesh {
         let mut stream = try!(pa.open_non_blocking_stream(settings, callback));
 
         try!(stream.start());
-        while true {
+        loop {
             for i in self.prompt() {
                 tx.send(i);
             }
@@ -215,6 +215,7 @@ impl Mesh {
                 } else { println!("types dont match");} 
             },
             "constant" => {
+                self.order_topologically();
                 message.push(
                     CallbackMessage::Connections(adj_clone(&self.adjacency_list),
                     topo_clone(&self.topologically_ordered).unwrap_or(Vec::new()/*really shitty way of handling error*/),
