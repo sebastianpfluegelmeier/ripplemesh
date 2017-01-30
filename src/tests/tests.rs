@@ -1,6 +1,8 @@
 use mesh::mesh::Mesh;
 use sine::sine::Sine;
 use dac::dac::Dac;
+use add::add::Add;
+use mult::mult::Mult;
 use constant::constant::Constant;
 
 #[test]
@@ -8,19 +10,24 @@ fn io() {
     let mut mesh = Mesh::new();
     let stream = mesh.run();
     let mut sum = 0;
-//    for i in 0 .. 100{
-//        for j in 0 .. 1000 {
-//            for k in 0 .. 10 {
-//                sum += 1;
-//            }
-//        }
-//    }
-//    println!("sum: {}", sum);
-    mesh.new_processor(Box::new(Constant::new()));
-    mesh.new_processor(Box::new(Sine::new()));
-    mesh.new_processor(Box::new(Dac::new()));
-    mesh.set_constant(0, 666.6);
-    mesh.new_connection(0, 0, 1, 0);
-    mesh.new_connection(1, 0, 2, 0);
+    mesh.new_processor(Box::new(Constant::new())); //0
+    mesh.new_processor(Box::new(Constant::new())); //1
+    mesh.new_processor(Box::new(Constant::new())); //2
+    mesh.new_processor(Box::new(Sine::new()));     //3
+    mesh.new_processor(Box::new(Sine::new()));     //4
+    mesh.new_processor(Box::new(Mult::new()));     //5
+    mesh.new_processor(Box::new(Add::new()));      //6 
+    mesh.new_processor(Box::new(Dac::new()));      //7
+    mesh.set_constant(0, 442.1);
+    mesh.set_constant(1, 1042.6);
+    mesh.set_constant(2, 888.8);
+    mesh.new_connection(0, 0, 6, 0);
+    mesh.new_connection(1, 0, 5, 0);
+    mesh.new_connection(2, 0, 3, 0);
+    mesh.new_connection(3, 0, 5, 1);
+    mesh.new_connection(5, 0, 6, 1);
+    mesh.new_connection(6, 0, 4, 0);
+    mesh.new_connection(4, 0, 7, 0);
+
     loop {}
 }
