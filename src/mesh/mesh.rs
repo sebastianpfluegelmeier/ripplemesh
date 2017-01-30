@@ -97,28 +97,26 @@ pub struct Mesh {
     adjacency_list: AdjList,
     pub topologically_ordered: TopoList,
     ios: IoList,
-    tx: Sender<f32>,
+    tx: Option<Sender<CallbackMessage>>,
 }
 
 impl Mesh {
 
     pub fn new() -> Mesh {
-        let (ttx, _) = mpsc::channel();
         Mesh {
             processor_types: Vec::new(),
             input_buffers: Vec::new(),
             adjacency_list: Vec::new(),
-            tx: ttx,
+            tx: Option::None,
             topologically_ordered: Option::Some(Vec::new()),
             ios: Vec::new(),
         }
     }
 
-    pub fn add_processor<T: 'static + Processor> 
-      (self: &mut Mesh, processor: T) -> Box<Processor> {
+    pub fn register_processor(self: &mut Mesh, processor: Box<Processor>) -> Box<Processor> {
 
         self.adjacency_list.push(Vec::new());
-        for _ in 0..processor.output_types().len() {
+        for _ in 0..(*processor).output_types().len() {
             let mut last: Vec<Vec<(usize, usize)>> = Vec::new();
 
             {
@@ -130,16 +128,15 @@ impl Mesh {
             }
             self.adjacency_list.push(last);
         }
-        let boxed_processor: Box<Processor> = Box::new(processor);
-        self.input_buffers.push(boxed_processor.input_types_and_defaults());
-        if boxed_processor.type_name() == "Dac" {
+        self.input_buffers.push(processor.input_types_and_defaults());
+        if processor.type_name() == "Dac" {
             self.ios.push(self.adjacency_list.len() - 1);
         }
-        self.processor_types.push(((*boxed_processor).input_types_and_defaults(),
-                                   (*boxed_processor).output_types(),
-                                   (*boxed_processor).type_name()));
+        self.processor_types.push(((*processor).input_types_and_defaults(),
+                                   (*processor).output_types(),
+                                   (*processor).type_name()));
         self.order_topologically();
-        boxed_processor
+        processor
     }
 
     pub fn run(&mut self) -> Result<(), pa::Error> {
@@ -167,18 +164,67 @@ impl Mesh {
         let mut stream = try!(pa.open_non_blocking_stream(settings, callback));
 
         try!(stream.start());
-        loop {
-            for i in self.prompt() {
-                tx.send(i);
-            }
-        }
-
-        try!(stream.stop());
-        try!(stream.close());
+        //try!(stream.stop());
+        //try!(stream.close());
+        self.tx = Option::Some(tx);
         Ok(())
     }
 
-    pub fn prompt(&mut self) -> Vec<CallbackMessage> {
+    pub fn new_connection(&mut self, in_proc: usize, in_plug: usize,
+                          out_proc: usize, out_plug: usize) -> bool {
+
+        {
+            if !self.connect((in_proc, in_plug), (out_proc, out_plug)) { 
+                return false;
+            }
+            match self.topologically_ordered {
+                Some(_) =>  (),
+                None    =>  return false,
+            }
+            if self.tx.is_none() {
+                return false;
+            }
+        }
+        let adj_list_clone: AdjList; 
+        let topo_list_clone: TopoList;
+        let ios_list_clone: IoList ;
+        {
+            adj_list_clone = adj_clone(&self.adjacency_list);
+            topo_list_clone = topo_clone(&self.topologically_ordered);
+            ios_list_clone = io_clone(&self.ios);
+        }
+        match (*self).tx {
+            Some(ref a) => a.send(
+                CallbackMessage::Connections(adj_list_clone,
+                                             topo_list_clone.unwrap(),
+                                             ios_list_clone)).unwrap(),
+            None    => return false,
+        }
+        return true;
+    }
+
+    pub fn set_constant(&mut self, index: usize, value: f64) {
+        match (*self).tx {
+            Some(ref a) => a.send(CallbackMessage::Constant(
+                    index,
+                    value)).unwrap(),
+            None        => (),
+        }
+    }
+
+    pub fn new_processor(&mut self, processor: Box<Processor>) {
+        let mut unpacked_tx;
+        let message = CallbackMessage::Processor(self.register_processor(processor));
+        match self.tx {
+            Some(ref a) => unpacked_tx = a,
+            None    => return (),
+        }
+        unpacked_tx.send(message);
+    }
+
+
+
+    /*pub fn prompt(&mut self) -> Vec<CallbackMessage> {
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
             Result::Ok(_)  => (),
@@ -192,11 +238,11 @@ impl Mesh {
         match inputs[0] {
             "new" => {
                 match inputs[1].trim_right() {
-                    "constant" => message.push(CallbackMessage::Processor(self.add_processor(Constant::new()))),
-                    "sine" => message.push(CallbackMessage::Processor(self.add_processor(Sine::new()))),
-                    "add"  => message.push(CallbackMessage::Processor(self.add_processor(Add::new()))),
-                    "mult" => message.push(CallbackMessage::Processor(self.add_processor(Mult::new()))),
-                    "dac"  => message.push(CallbackMessage::Processor(self.add_processor(Dac::new()))),
+                    "constant" => message.push(CallbackMessage::Processor(self.register_processor(Box::new<Constant::new()))),
+                    "sine" => message.push(CallbackMessage::Processor(self.register_processor(Sine::new()))),
+                    "add"  => message.push(CallbackMessage::Processor(self.register_processor(Add::new()))),
+                    "mult" => message.push(CallbackMessage::Processor(self.register_processor(Mult::new()))),
+                    "dac"  => message.push(CallbackMessage::Processor(self.register_processor(Dac::new()))),
                     x      => println!("module \"{}\" not known", x),
                 }
             },
@@ -222,7 +268,7 @@ impl Mesh {
             _ => println!("command not found"),
         }
         message
-    }
+    }*/
 
     pub fn connect(self: &mut Mesh, output: (usize, usize), input: (usize, usize)) -> bool {
     // output: (processor, plug), input: (processor, plug)
