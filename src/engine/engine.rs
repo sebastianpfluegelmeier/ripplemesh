@@ -9,15 +9,11 @@ use std::option;
 use std::vec::Vec;
 use std::collections::LinkedList;
 use std::collections::HashMap;
-use pipe::pipe::Pipe;
 use add::add::Add;
 use mult::mult::Mult;
-use intpipe::intpipe::Intpipe;
 use dac::dac::Dac;
 use sine::sine::Sine;
-use mesh::mesh::Processor;
-use mesh::mesh::Mesh;
-use mesh::mesh::Signal;
+use mesh::mesh::{Processor, Mesh, Signal};
 use dummy::dummy::Dummy;
 
 use self::portaudio as pa;

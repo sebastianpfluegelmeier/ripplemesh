@@ -10,15 +10,11 @@ use std::option;
 use std::vec::Vec;
 use std::collections::LinkedList;
 use std::collections::HashMap;
-use slope::slope::Slope;
-use pipe::pipe::Pipe;
 use add::add::Add;
 use mult::mult::Mult;
-use intpipe::intpipe::Intpipe;
 use dac::dac::Dac;
 use sine::sine::Sine;
-use engine::engine::Engine;
-use engine::engine::CallbackMessage;
+use engine::engine::{Engine, CallbackMessage};
 use dummy::dummy::Dummy;
 use constant::constant::Constant;
 
@@ -57,7 +53,7 @@ fn topo_clone(input: &TopoList) -> TopoList {
             }
             return Option::Some(clone);
         },
-        &Option::None    => return Option::None,
+        &Option::None => return Option::None,
     }
 }
 
@@ -87,7 +83,7 @@ impl Clone for Signal {
     fn clone(&self) -> Signal {
         match *self {
             Signal::Sound(a) => return Signal::Sound(a),
-            Signal::Int(_)   => panic!(),
+            Signal::Int(a)   => return Signal::Int(a),
         }
     }
 }
@@ -99,8 +95,8 @@ pub struct Mesh {
                                      //they get processed.
     //[out_processor][out_plug][connection](in_processor, in_plug)
     adjacency_list: AdjList,
-    pub topologically_ordered: Option<Vec<usize>>,
-    ios: Vec<usize>,
+    pub topologically_ordered: TopoList,
+    ios: IoList,
     tx: Sender<f32>,
 }
 
@@ -128,7 +124,7 @@ impl Mesh {
             {
                 match self.adjacency_list.pop() {
                     Some(x) => last = x,
-                    None => println!("this should not happen"),
+                    None    => panic!(),
                 }
                 last.push(Vec::new());
             }
@@ -148,7 +144,8 @@ impl Mesh {
 
     pub fn run(&mut self) -> Result<(), pa::Error> {
         let pa = try!(pa::PortAudio::new());
-        let (tx, rx): (mpsc::Sender<CallbackMessage>, mpsc::Receiver<CallbackMessage>) = mpsc::channel();
+        let (tx, rx): (mpsc::Sender<CallbackMessage>,
+                       mpsc::Receiver<CallbackMessage>) = mpsc::channel();
         let mut engine: Engine =  Engine::new(rx);
 
         let mut settings = 
@@ -184,12 +181,12 @@ impl Mesh {
     pub fn prompt(&mut self) -> Vec<CallbackMessage> {
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
-	    Result::Ok(_)  => (),
-	    Result::Err(_) => {
-		println!("could not read line");
-	        panic!("could not read line");  
-	    },
-	}
+            Result::Ok(_)  => (),
+            Result::Err(_) => {
+                println!("could not read line");
+                return Vec::new();
+            },
+        }
         let inputs: Vec<&str> = input.split(' ').collect();
         let mut message: Vec<CallbackMessage> = Vec::new();
         match inputs[0] {
