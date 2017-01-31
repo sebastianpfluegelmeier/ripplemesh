@@ -139,7 +139,7 @@ impl Mesh {
         processor
     }
 
-    pub fn run(&mut self) -> Result<(), pa::Error> {
+    pub fn run(&mut self) -> Result<pa::Stream<pa::NonBlocking, pa::Output<f32>>, pa::Error> {
         let pa = try!(pa::PortAudio::new());
         let (tx, rx): (mpsc::Sender<CallbackMessage>,
                        mpsc::Receiver<CallbackMessage>) = mpsc::channel();
@@ -167,7 +167,7 @@ impl Mesh {
         //try!(stream.stop());
         //try!(stream.close());
         self.tx = Option::Some(tx);
-        Ok(())
+        Ok(stream)
     }
 
     pub fn new_connection(&mut self, in_proc: usize, in_plug: usize,

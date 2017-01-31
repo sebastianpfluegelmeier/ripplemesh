@@ -6,6 +6,16 @@ use mult::mult::Mult;
 use constant::constant::Constant;
 
 #[test]
+fn prompt() {
+    let mut mesh = Mesh::new();
+    let stream = mesh.run();
+    loop {
+        mesh.prompt();
+    }
+}
+
+
+//#[test]
 fn io() {
     let mut mesh = Mesh::new();
     let stream = mesh.run();
