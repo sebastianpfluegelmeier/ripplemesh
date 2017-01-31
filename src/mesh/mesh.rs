@@ -164,6 +164,7 @@ impl Mesh {
         let mut stream = try!(pa.open_non_blocking_stream(settings, callback));
 
         try!(stream.start());
+        while !stream.is_active().unwrap() { }
         //try!(stream.stop());
         //try!(stream.close());
         self.tx = Option::Some(tx);
