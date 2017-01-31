@@ -26,6 +26,7 @@ pub enum CallbackMessage {
     Processor(Box<Processor>),
     Connections(Vec<Vec<Vec<(usize, usize)>>>, Vec<usize>, Vec<usize>),
     Constant(usize, f64),
+    ProcessorDeletion(usize),
 }
 
 pub struct Engine {
@@ -86,6 +87,7 @@ impl Engine {
                 CallbackMessage::Processor(a) => self.add_processor(a),
                 CallbackMessage::Connections(adj, topo, io) => self.update_connections(adj, topo, io),
                 CallbackMessage::Constant(a, b) => self.set_constant(a, b),
+                CallbackMessage::ProcessorDeletion(a) => self.remove_processor(a),
             },
 	        Result::Err(_) => (),
         }

@@ -222,7 +222,12 @@ impl Mesh {
         unpacked_tx.send(message);
     }
 
-
+    pub fn delete_processor(&mut self, processor: usize) {
+        match (*self).tx {
+            Some(ref a) => a.send(CallbackMessage::ProcessorDeletion(processor)).unwrap(),
+            None        => return (),
+        }
+    }
 
     pub fn prompt(&mut self) {
         let mut input = String::new();
