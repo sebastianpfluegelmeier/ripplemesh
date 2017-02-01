@@ -92,7 +92,7 @@ impl Clone for Signal {
 pub struct Mesh {
     pub processor_types: Vec<(Vec<Signal>, Vec<Signal>, String)>,
     pub input_buffers: Vec<Vec<Signal>>, // computed signals are stored here until
-                                     //they get processed.
+                                         //they get processed.
     //[out_processor][out_plug][connection](in_processor, in_plug)
     adjacency_list: AdjList,
     pub topologically_ordered: TopoList,
@@ -224,10 +224,6 @@ impl Mesh {
     }
 
     pub fn delete_processor(&mut self, processor: usize) {
-        match (*self).tx {
-            Some(ref a) => a.send(CallbackMessage::ProcessorDeletion(processor)).unwrap(),
-            None        => return (),
-        }
     }
 
     pub fn prompt(&mut self) {
